@@ -347,48 +347,239 @@
       
         
           
-            <h1 id="Fastdfs分布式文件存储（基础知识部分）"><a href="#Fastdfs分布式文件存储（基础知识部分）" class="headerlink" title="Fastdfs分布式文件存储（基础知识部分）"></a>Fastdfs分布式文件存储（基础知识部分）</h1><hr>
-<h2 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h2><p>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Fastdfs是一款比较轻量级的开源分布式文件系统，作者是余庆大大在0几年业余时间用c撸出来的(工作不饱和，加班不够啊:)  ，现任淘宝网开放平台技术部资深架构师,Fastdfs在小文件存储方面性能优异，在淘宝和京东都有实例的应用案例，去哪儿目前使用的是seaweedfs，基于Facebook的图片存储论文用go语言开发的一套存储系统，使用起来也是非常方便，更加现代化，这个日后研究，直接进入正题。</p>
-<h2 id="相关术语"><a href="#相关术语" class="headerlink" title="相关术语"></a>相关术语</h2><p>• Tracker Server：跟踪服务器，主要负责任务调度,请求分发负载的工作。记录storage server的状态，是连接Client和Storage server的枢纽。<br>• Storage Server：存储服务器，文件和meta data都保存到存储服务器上。<br>• group：组，也可称为卷。同组内服务器上的文件是完全相同的。<br>• 文件标识：包括两部分：组名和文件名（包含路径）。<br>• meta data：文件相关属性，键值对（Key Value Pair）方式，如：width=1024,heigth=768</p>
-<h2 id="系统架构"><a href="#系统架构" class="headerlink" title="系统架构"></a>系统架构</h2><p><img src="/2018/11/10/Fastdfs分布式文件存储/1.jpg" alt="1.jpg"></p>
+            <h1>Fastdfs分布式文件存储（基础知识部分）</h1>
+<hr>
+<h2>简介</h2>
+<p>     Fastdfs是一款比较轻量级的开源分布式文件系统，作者是余庆大大在0几年业余时间用c撸出来的(工作不饱和，加班不够啊:)  ，现任淘宝网开放平台技术部资深架构师,Fastdfs在小文件存储方面性能优异，在淘宝和京东都有实例的应用案例，去哪儿目前使用的是seaweedfs，基于Facebook的图片存储论文用go语言开发的一套存储系统，使用起来也是非常方便，更加现代化，这个日后研究，直接进入正题。</p>
+<h2>相关术语</h2>
+<p>• Tracker Server：跟踪服务器，主要负责任务调度,请求分发负载的工作。记录storage server的状态，是连接Client和Storage server的枢纽。
+• Storage Server：存储服务器，文件和meta data都保存到存储服务器上。
+• group：组，也可称为卷。同组内服务器上的文件是完全相同的。
+• 文件标识：包括两部分：组名和文件名（包含路径）。
+• meta data：文件相关属性，键值对（Key Value Pair）方式，如：width=1024,heigth=768</p>
+<h2>系统架构</h2>
+<p><img src="/2018/11/10/Fastdfs分布式文件存储/1.jpg" alt="1.jpg"></p>
 <p>从图中可以看出两大核心部分，trakcer跟踪器，storage存储节点，跟踪器主要负责路由分发，任务调度，与clent端直接交互，storage则负责存储实际的数据，两部分都支持主流的分布式主从配置，即master/slave模式，在请求量大时可加大trakcer集群规模，在存储大文件或读写频繁时可加大storage集群规模，非常容易的就能做到局部和全局的横向扩展，如果对这两部分理解还很模糊我们看下文件上传下载的流程图</p>
-<p><img src="/2018/11/10/Fastdfs分布式文件存储/2.jpg" alt="2.jpg"><br>• 1. client询问tracker上传到的storage，不需要附加参数；<br>• 2.tracker返回一台可用的storage；<br>• 3.client直接和storage通讯完成文件上传。</p>
-<p><img src="/2018/11/10/Fastdfs分布式文件存储/3.jpg" alt="3.jpg"><br>• 1. client询问tracker下载文件的storage，参数为文件标识（组名和文件名）；<br>• 2.tracker返回一台可用的storage；<br>• 3.client直接和storage通讯完成文件下载。</p>
-<h2 id="同步机制"><a href="#同步机制" class="headerlink" title="同步机制"></a>同步机制</h2><p>•同一组内的storage server之间是对等的，文件上传、删除等操作可以在任意一台storage server上进行；<br>•文件同步只在同组内的storage server之间进行，采用push方式，即源服务器同步给目标服务器；<br>•源头数据才需要同步，备份数据不需要再次同步，否则就构成环路了；<br>•上述第二条规则有个例外，就是新增加一台storage server时，由已有的一台storage server将已有的所有数据（包括源头数据和备份数据）同步给该新增服务器，当某台master storage宕机时，依据选举算法此master节点下的某台slave storage会自动切换为master，并将原master剔除集群，原master重启后，会自动以slave的角色重新加入集群，并在重启后将宕机期间的数据自动同步到此节点上。</p>
-<h2 id="文件目录结构"><a href="#文件目录结构" class="headerlink" title="文件目录结构"></a>文件目录结构</h2><p><img src="/2018/11/10/Fastdfs分布式文件存储/4.jpg" alt="4.jpg"><br><img src="/2018/11/10/Fastdfs分布式文件存储/5.jpg" alt="5.jpg"></p>
-<h2 id="运行与安装（单节点）"><a href="#运行与安装（单节点）" class="headerlink" title="运行与安装（单节点）"></a>运行与安装（单节点）</h2><p>一、准备工作(俩台机器同时进行)<br>1下载软件: <a href="http://sourceforge.net/projects/fastdfs/files/" target="_blank" rel="noopener">http://sourceforge.net/projects/fastdfs/files/</a><br>2安装gcc。命令:yum install make cmake gcc gcc-c++<br><img src="/2018/11/10/Fastdfs分布式文件存储/6.jpg" alt="6.jpg"></p>
-<p>2、安装libfastcommon(俩台机器同时进行)<br>1 上传libfastcommon-master.zip到/usr/local/software下<br>2 进行解压libfastcommon-master.zip:<br>命令:unzip libfastcommon-master.zip -d /usr/local/fast/<br>3 进入目录:cd /usr/local/fast/libfastcommon-master/</p>
-<p>4 进行编译和安装:<br>命令:./make.sh<br>命令:./make.sh install</p>
-<p>注意安装的路径:也就是说,我们的libfastcommon默认安装到了/usr/lib64/这个位置。<br>5进行软件创建。FastDFS主程序设置的目录为/usr/local/lib/,所以我们需要创建/<br>usr/lib64/下的一些核心执行程序的软连接文件。<br>命令:mk dir /usr/local/lib/<br>命令:ln -s /usr/lib64/libfastcommon.so /usr/local/lib/libfastcommon.so</p>
-<p>命令:ln -s /usr/lib64/libfastcommon.so /usr/lib/libfastcommon.so<br>命令:ln -s /usr/lib64/libfdfsclient.so /usr/local/lib/libfdfsclient.so<br>命令:ln -s /usr/lib64/libfdfsclient.so /usr/lib/libfdfsclient.so<br>3、安装FastDFS<br>1<br>进入到cd /usr/local/software下,解压FastDFS_v5.05.tar.gz文件<br>命令:cd /usr/local/software<br>命令:tar -zxvf FastDFS_v5.05.tar.gz -C /usr/local/fast/<br>2<br>安装编译<br>命令:<br>cd /usr/local/fast/FastDFS/<br>编译命令:./make.sh<br>安装命令:./make.sh install</p>
-<p>3 采用默认安装方式脚本文件说明:、<br>1、服务脚本在:<br>/etc/init.d/fdfs_storaged<br>/etc/init.d/fdfs_trackerd</p>
-<p>2、配置文件在:<br>/etc/fdfs/client.conf.sample<br>/etc/fdfs/storage.conf.sample<br>/etc/fdfs/tracker.conf.sample</p>
-<p>3、命令行工具在/usr/bin/目录下Fdfs_*的一些列执行脚本<br>4因为FastDFS服务脚本设置的bin目录为/usr/local/bin/下,但是实际我们安装在了/u<br>sr/bin/下面。所以我们需要修改FastDFS配置文件中的路径,也就是需要修改俩个配置文件:<br>命令:<br>vim /etc/init.d/fdfs_storaged<br>进行全局替换命令:%s+/usr/local/bin+/usr/bin<br>命令:vim /etc/init.d/fdfs_trackerd<br>进行全局替换命令:%s+/usr/local/bin+/usr/bin<br>4、配置跟踪器(192.168.1.172节点)<br>1进入cd<br>/etc/fdfs/目录配置跟踪器文件(注意是192.168.1.172节点),把tracker.conf.samp<br>le文件进行cope一份:去修改tracker.conf文件</p>
-<p>2 修改tracker.conf文件<br>命令:vim /etc/fdfs/tracker.conf<br>如下图所示:我们暂时修改配置文件里的base_path即可。</p>
-<p>修改为自己的路径地址:base_path=/fastdfs/tracker注意:对于tracker.conf配置文件参数解释可以找官方文档,地址为:<a href="http://bbs.chinaunix.net/thread-1941456-1-1.html" target="_blank" rel="noopener">http://bbs.chinaunix.net/thread-1941456-1-1.html</a><br>3 最后我们一定要创建之前定义好的目录(也就是/fastdfs/tracker):<br>命令:mkdir -p /fastdfs/tracker<br>4 关闭防火墙:(我们在学习时可以不用考虑防火墙的问题)<br>Vim /etc/sysconfig/iptables<br>添加:-A INPUT -m state –state NEW -m tcp -p tcp –dport 22122 -j ACCEPT<br>重启:service iptables restart<br>5 启动跟踪器<br>如图所示:</p>
-<p>目录命令:cd /fastdfs/tracker/ &amp;&amp; ll<br>启动tracker命令:/etc/init.d/fdfs_trackerd start<br>查看进程命令:ps -el | grep fdfs<br>停止tracker命令:/etc/init.d/fdfs_trackerd stop<br>6可以设置开机启动跟踪器:(一般生产环境需要开机启动一些服务,如keepalived、linux、tomcat等等)<br>命令:vim /etc/rc.d/rc.local<br>加入配置:/etc/init.d/fdfs_trackerd start<br>5、配置FastDFS存储(192.168.1.173)<br>1 进入文件目录:cd /etc/fdfs/,进行copy storage文件一份<br>命令:cd /etc/fdfs/<br>命令:cp storage.conf.sample storage.conf<br>2 修改storage.conf文件<br>命令:vim /etc/fdfs/storage.conf<br>修改内容:<br>base_path=/fastdfs/storage<br>store_path0=/fastdfs/storage<br>tracker_server=192.168.1.172:22122<br>http.server_port=8888<br>3 创建存储目录:mkdir -p /fastdfs/storage<br>4 打开防火墙:<br>命令:vim /etc/sysconfig/iptables<br>添加:-A INPUT -m state –state NEW -m tcp -p tcp –dport 23000 -j ACCEPT<br>重启:service iptables restart<br>5 启动存储(storage)<br>命令:/etc/init.d/fdfs_storaged start (关闭:/etc/init.d/fdfs_storaged stop)</p>
-<p>(初次启动成功后会在/fastdbf/storage/ 目录下创建 data、logs俩个目录)<br>6 查看FastDFS storage 是否启动成功<br>命令:ps -ef | grep fdfs</p>
-<p>并且我们进入到/fastdfs/storage/data/文件夹下会看到一些目录文件(256*256),如下:<br>命令:cd /fastdfs/storage/data/ &amp;&amp; ls</p>
-<p>7同理,也可以设置开机启动存储器:(一般生产环境需要开机启动一些服务,<br>如keepalived、linux、tomcat等等)<br>命令:vim /etc/rc.d/rc.local<br>加入配置:/etc/init.d/fdfs_storaged start到此为止我们的FastDFS环境已经搭建完成!<br>6、测试环境<br>1 我们先使用命令上传一个文件。注意:是在tracker(跟踪器)中上传。<br>首先我们在跟踪器(192.168.1.172)里copy一份client.conf文件。<br>命令:cd /etc/fdfs/<br>命令:cp client.conf.sample client.conf</p>
-<p>2 编辑client.conf文件<br>命令:vim /etc/fdfs/client.conf<br>修改内容:<br>base_path=/fastdfs/tracker</p>
-<p>tracker_server=192.168.1.172:22122<br>3 我们找到命令的脚本位置,并且使用命令,进行文件的上传:<br>命令:cd /usr/bin/<br>命令:ls | grep fdfs</p>
-<p>4 使用命令fdfs_upload_file进行上传操作:<br>首先,我们先看一下存储器(192.168.1.173),进入到data下,在进入00文件夹下,发现00文件夹下还有一堆文件夹,然后继续进入00文件夹下,最终我们所进入的文件夹为:<br>/fastdfs/storage/data/00/00 里面什么文件都没有。</p>
-<p>然后,我们进行上传操作,比如把之前的/usr/local/software/文件夹下的某一个<br>文件上传到FastDFS系统中去,在跟踪器(192.168.1.172)中上传文件,命令如下:<br>命令:/usr/bin/fdfs_upload_file /etc/fdfs/client.conf<br>/usr/local/software/FastDFS_v5.05.tar.gz</p>
-<p>最后我们发现,命令执行完毕后,返回一个group1/M00/00/00/…的ID,其实就<br>是返回当前所上传的文件在存储器(192.168.1.173)中的哪一个组、哪一个目<br>录位置,所以我们查看存储器中的/fastdfs/storage/data/00/00文件夹位置,发现<br>已经存在了刚才上传的文件,到此为止,我们的测试上传文件已经OK了。如下</p>
-<p>7、FastDFS与Nginx整合<br>1 首先两台机器里必须先安装nginx<br>2然后我们在存储节点上(192.168.1.173)安装fastdfs-nginx-module_v1.16.tar.gz包进行整合。</p>
-<p>目录命令:cd /usr/local/software/<br>解压命令:tar -zxvf /usr/local/software/fastdfs-nginx-module_v1.16.tar.gz -C /usr/local/fast/<br>3 进入目录:cd fastdfs-nginx-module/src/</p>
-<p>4 编辑配置文件config<br>命令: vim /usr/local/fast/fastdfs-nginx-module/src/config<br>修改内容:去掉下图中的local文件层次</p>
-<p>修改完毕为:</p>
-<p>5 FastDFS与nginx进行集成<br>首先把之前的nginx进行删除<br>目录命令:cd /usr/local/<br>删除命令:rm -rf nginx<br>进入到nginx目录命令:cd nginx-1.6.2/<br>加入模块命令:./configure –add-module=/usr/local/fast/fastdfs-nginx-module/src/<br>重新编译命令:make &amp;&amp; make install<br>6 复制fastdfs-ngin-module中的配置文件,到/etc/fdfs目录中,如图所示:</p>
-<p>copy命令:cp /usr/local/fast/fastdfs-nginx-module/src/mod_fastdfs.conf /etc/fdfs/<br>7 进行修改 /etc/fdfs/ 目录下,我们刚刚copy过来的mod_fastdfs.conf 文件。</p>
-<p>命令:vim /etc/fdfs/mod_fastdfs.conf修改内容:比如连接超时时间、跟踪器路径配置、url的group配置、connect_timeout=10<br>tracker_server=192.168.1.172:22122<br>url_have_group_name = true<br>store_path0=/fastdfs/storage<br>8 复制FastDFS里的2个文件,到/etc/fdfs目录中,如图所示:</p>
-<p>目录命令:cd /usr/local/fast/FastDFS/conf/<br>Copy命令:cp http.conf mime.types /etc/fdfs/<br>9创建一个软连接,在/fastdfs/storage文件存储目录下创建软连接,将其链接到实际存放数据的目录。<br>命令:<br>ln -s /fastdfs/storage/data/ /fastdfs/storage/data/M00<br>10 修改Nginx配置文件,如图所示:</p>
-<p>命令:vim nginx.conf修改配置内容如下图所示:</p>
-<p>修改内容为:<br>listen 8888;<br>server_name localhost;location ~/group([0-9])/M00 {</p>
-<p>#alias /fastdfs/storage/data;<br>ngx_fastdfs_module;<br>}<br>注意:nginx里的端口要和第五步配置FastDFS存储中的storage.conf文件配置一致,<br>也就是(http.server_port=8888)<br>11 最后检查防火墙,然后我们启动nginx服务</p>
-<p>启动命令:/usr/local/nginx/sbin/nginx,我们刚才上传了一个文件,上传成功,<br>如图:</p>
-<p>现在我们使用这个ID用浏览器访问地址:<a href="http://192.168.1.173:8888/group1/M00/00/00/wKgBrVaSvM6AddWWAAVFOL7FJU4.tar.gz我们就可以下载这个文件啦!如下图所示" target="_blank" rel="noopener">http://192.168.1.173:8888/group1/M00/00/00/wKgBrVaSvM6AddWWAAVFOL7FJU4.tar.gz我们就可以下载这个文件啦!如下图所示</a>:</p>
-<p>运维注意:我们在使用FastDFS的时候,需要正常关机,不要使用kill -9强杀FastDFS进程,不然会在文件上传时出现丢数据的情况。<br>到此,我们的FastDFS与Nginx整合完毕!!<br>八:启动停止服务步骤如下:<br>启动命令:启动<br>tracker命令:/etc/init.d/fdfs_trackerd start查看进程命令:ps -el | grep fdfs启动storage命令:/etc/init.d/fdfs_storaged start查看进程命令:ps -el | grep fdfs启动nginx命令:/usr/local/nginx/sbin/nginx停止命令:<br>停止tracker命令:/etc/init.d/fdfs_trackerd stop关闭storage命令:/etc/init.d/fdfs_storaged stop关闭nginx命令:/usr/local/nginx/sbin/nginx -s stop</p>
+<p><img src="/2018/11/10/Fastdfs分布式文件存储/2.jpg" alt="2.jpg">
+• 1. client询问tracker上传到的storage，不需要附加参数；
+• 2.tracker返回一台可用的storage；
+• 3.client直接和storage通讯完成文件上传。</p>
+<p><img src="/2018/11/10/Fastdfs分布式文件存储/3.jpg" alt="3.jpg">
+• 1. client询问tracker下载文件的storage，参数为文件标识（组名和文件名）；
+• 2.tracker返回一台可用的storage；
+• 3.client直接和storage通讯完成文件下载。</p>
+<h2>同步机制</h2>
+<p>•同一组内的storage server之间是对等的，文件上传、删除等操作可以在任意一台storage server上进行；
+•文件同步只在同组内的storage server之间进行，采用push方式，即源服务器同步给目标服务器；
+•源头数据才需要同步，备份数据不需要再次同步，否则就构成环路了；
+•上述第二条规则有个例外，就是新增加一台storage server时，由已有的一台storage server将已有的所有数据（包括源头数据和备份数据）同步给该新增服务器，当某台master storage宕机时，依据选举算法此master节点下的某台slave storage会自动切换为master，并将原master剔除集群，原master重启后，会自动以slave的角色重新加入集群，并在重启后将宕机期间的数据自动同步到此节点上。</p>
+<h2>文件目录结构</h2>
+<p><img src="/2018/11/10/Fastdfs分布式文件存储/4.jpg" alt="4.jpg">
+<img src="/2018/11/10/Fastdfs分布式文件存储/5.jpg" alt="5.jpg"></p>
+<h2>运行与安装（单节点）</h2>
+<p>一、准备工作(俩台机器同时进行)<br>
+1.下载软件: http://sourceforge.net/projects/fastdfs/files/<br>
+2安装gcc。命令:yum install make cmake gcc gcc-c++</p>
+<p>3 安装libfastcommon(俩台机器同时进行)<br>
+  3.1 上传libfastcommon-master.zip到/usr/local/software下<br>
+  3.2 进行解压libfastcommon-master.zip:<br>
+命令:unzip libfastcommon-master.zip -d /usr/local/fast/<br>
+  3.3 进入目录:cd /usr/local/fast/libfastcommon-master/<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/6.jpg" alt="6.jpg"></p>
+<p>4 进行编译和安装:<br>
+命令:  ./make.sh<br>
+命令:  ./make.sh install<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/7.jpg" alt="7.jpg">
+注意安装的路径:也就是说,我们的libfastcommon默认安装到了/usr/lib64/这个位置。</p>
+<p>5 进行软件创建。FastDFS主程序设置的目录为/usr/local/lib/,所以我们需要创建/
+usr/lib64/下的一些核心执行程序的软连接文件。<br>
+命令:mk dir /usr/local/lib/<br>
+命令:ln -s /usr/lib64/libfastcommon.so /usr/local/lib/libfastcommon.so<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/8.jpg" alt="8.jpg">
+命令:ln -s /usr/lib64/libfastcommon.so /usr/lib/libfastcommon.so<br>
+命令:ln -s /usr/lib64/libfdfsclient.so /usr/local/lib/libfdfsclient.so<br>
+命令:ln -s /usr/lib64/libfdfsclient.so /usr/lib/libfdfsclient.so<br>
+6、安装FastDFS<br>
+  6.1 进入到cd /usr/local/software下,解压FastDFS_v5.05.tar.gz文件<br>
+  命令:cd /usr/local/software<br>
+  命令:tar -zxvf FastDFS_v5.05.tar.gz -C /usr/local/fast/<br>
+  6.2安装编译<br>
+  命令:cd /usr/local/fast/FastDFS/<br>
+  编译命令:./make.sh<br>
+  安装命令:./make.sh install<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/9.jpg" alt="9.jpg">
+7 采用默认安装方式脚本文件说明:<br>
+1、服务脚本在:<br>
+/etc/init.d/fdfs_storaged<br>
+/etc/init.d/fdfs_trackerd<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/10.jpg" alt="10.jpg">
+2、配置文件在:<br>
+/etc/fdfs/client.conf.sample<br>
+/etc/fdfs/storage.conf.sample<br>
+/etc/fdfs/tracker.conf.sample<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/11.jpg" alt="11.jpg">
+3、命令行工具在/usr/bin/目录下Fdfs_*的一些列执行脚本
+<img src="/2018/11/10/Fastdfs分布式文件存储/12.jpg" alt="12.jpg">
+4 因为FastDFS服务脚本设置的bin目录为/usr/local/bin/下,但是实际我们安装在了/u
+sr/bin/下面。所以我们需要修改FastDFS配置文件中的路径,也就是需要修改俩个配置文件:<br>
+命令:vim /etc/init.d/fdfs_storaged<br>
+进行全局替换命令:%s+/usr/local/bin+/usr/bin<br>
+命令:vim /etc/init.d/fdfs_trackerd<br>
+进行全局替换命令:%s+/usr/local/bin+/usr/bin<br>
+4、配置跟踪器(192.168.1.172节点)<br>
+1进入cd/etc/fdfs/目录配置跟踪器文件(注意是192.168.1.172节点),把tracker.conf.samp
+le文件进行cope一份:去修改tracker.conf文件
+<img src="/2018/11/10/Fastdfs分布式文件存储/13.jpg" alt="13.jpg"></p>
+<p>2 修改tracker.conf文件<br>
+命令:vim /etc/fdfs/tracker.conf<br>
+如下图所示:我们暂时修改配置文件里的base_path即可。<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/14.jpg" alt="14.jpg"></p>
+<p>修改为自己的路径地址:base_path=/fastdfs/tracker<br>
+注意:对于tracker.conf配置文件参数解释可以找官方文档,地址为:<br>
+http://bbs.chinaunix.net/thread-1941456-1-1.html<br>
+3 最后我们一定要创建之前定义好的目录(也就是/fastdfs/tracker):<br>
+命令:mkdir -p /fastdfs/tracker<br>
+4 关闭防火墙:(我们在学习时可以不用考虑防火墙的问题)<br>
+vim /etc/sysconfig/iptables<br>
+添加:-A INPUT -m state --state NEW -m tcp -p tcp --dport 22122 -j ACCEPT<br>
+重启:service iptables restart<br>
+5 启动跟踪器<br>
+如图所示:<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/15.jpg" alt="15.jpg"></p>
+<p>目录命令:cd /fastdfs/tracker/ &amp;&amp; ll<br>
+启动tracker命令:/etc/init.d/fdfs_trackerd start<br>
+查看进程命令:ps -el | grep fdfs<br>
+停止tracker命令:/etc/init.d/fdfs_trackerd stop</p>
+<p>6可以设置开机启动跟踪器:(一般生产环境需要开机启动一些服务,如keepalived、linux、tomcat等等)<br>
+命令:vim /etc/rc.d/rc.local<br>
+加入配置:/etc/init.d/fdfs_trackerd start</p>
+<p>5、配置FastDFS存储(192.168.1.173)<br>
+1 进入文件目录:cd /etc/fdfs/,进行copy storage文件一份<br>
+命令:cd /etc/fdfs/<br>
+命令:cp storage.conf.sample storage.conf<br>
+2 修改storage.conf文件<br>
+命令:vim /etc/fdfs/storage.conf<br>
+修改内容:<br>
+base_path=/fastdfs/storage<br>
+store_path0=/fastdfs/storage<br>
+tracker_server=192.168.1.172:22122<br>
+http.server_port=8888<br>
+3 创建存储目录:mkdir -p /fastdfs/storage<br>
+4 打开防火墙:<br>
+命令:vim /etc/sysconfig/iptables<br>
+添加:-A INPUT -m state --state NEW -m tcp -p tcp --dport 23000 -j ACCEPT<br>
+重启:service iptables restart<br>
+5 启动存储(storage)<br>
+命令:/etc/init.d/fdfs_storaged start (关闭:/etc/init.d/fdfs_storaged stop)<br>
+(初次启动成功后会在/fastdbf/storage/ 目录下创建 data、logs俩个目录)
+<img src="/2018/11/10/Fastdfs分布式文件存储/16.jpg" alt="16.jpg">
+6 查看FastDFS storage 是否启动成功<br>
+命令:ps -ef | grep fdfs
+<img src="/2018/11/10/Fastdfs分布式文件存储/17.jpg" alt="17.jpg">
+并且我们进入到/fastdfs/storage/data/文件夹下会看到一些目录文件(256*256),如下:<br>
+命令:cd /fastdfs/storage/data/ &amp;&amp; ls<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/18.jpg" alt="18.jpg">
+7 同理,也可以设置开机启动存储器:(一般生产环境需要开机启动一些服务,如keepalived、linux、tomcat等等)<br>
+命令:vim /etc/rc.d/rc.local<br>
+加入配置:/etc/init.d/fdfs_storaged start<br>
+到此为止我们的FastDFS环境已经搭建完成。。。</p>
+<h2>验证环境</h2>
+<p>1 我们先使用命令上传一个文件。注意:是在tracker(跟踪器)中上传。
+首先我们在跟踪器(192.168.1.172)里copy一份client.conf文件。<br>
+命令:cd /etc/fdfs/<br>
+命令:cp client.conf.sample client.conf<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/19.jpg" alt="19.jpg"></p>
+<p>2 编辑client.conf文件<br>
+命令:vim /etc/fdfs/client.conf<br>
+修改内容:<br>
+base_path=/fastdfs/tracker<br>
+tracker_server=192.168.1.172:22122<br>
+3 我们找到命令的脚本位置,并且使用命令,进行文件的上传:<br>
+命令:cd /usr/bin/<br>
+命令:ls | grep fdfs<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/20.jpg" alt="20.jpg"></p>
+<p>4 使用命令fdfs_upload_file进行上传操作:<br>
+首先,我们先看一下存储器(192.168.1.173),进入到data下,在进入00文件夹下,发现00文件夹下还有一堆文件夹,然后继续进入00文件夹下,最终我们所进入的文件夹为:<br>
+/fastdfs/storage/data/00/00 里面什么文件都没有。</p>
+<p><img src="/2018/11/10/Fastdfs分布式文件存储/21.jpg" alt="21.jpg"></p>
+<p>然后,我们进行上传操作,比如把之前的/usr/local/software/文件夹下的某一个
+文件上传到FastDFS系统中去,在跟踪器(192.168.1.172)中上传文件,命令如下:<br>
+命令:/usr/bin/fdfs_upload_file /etc/fdfs/client.conf<br>
+/usr/local/software/FastDFS_v5.05.tar.gz<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/22.jpg" alt="22.jpg"></p>
+<p>最后我们发现,命令执行完毕后,返回一个group1/M00/00/00/...的ID,其实就
+是返回当前所上传的文件在存储器(192.168.1.173)中的哪一个组、哪一个目
+录位置,所以我们查看存储器中的/fastdfs/storage/data/00/00文件夹位置,发现
+已经存在了刚才上传的文件,到此为止,我们的测试上传文件已经OK了。如下<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/23.jpg" alt="23.jpg"></p>
+<p>7、FastDFS与Nginx整合<br>
+1 首先两台机器里必须先安装nginx<br>
+2然后我们在存储节点上(192.168.1.173)安装fastdfs-nginx-module_v1.16.tar.gz包进行整合。<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/24.jpg" alt="24.jpg"></p>
+<p>目录命令:cd /usr/local/software/<br>
+解压命令:tar -zxvf /usr/local/software/fastdfs-nginx-module_v1.16.tar.gz -C /usr/local/fast/<br>
+3 进入目录:cd fastdfs-nginx-module/src/<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/25.jpg" alt="25.jpg"></p>
+<p>4 编辑配置文件config<br>
+命令: vim /usr/local/fast/fastdfs-nginx-module/src/config<br>
+修改内容:去掉下图中的local文件层次<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/26.jpg" alt="26.jpg"></p>
+<p>修改完毕为:<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/27.jpg" alt="27.jpg"></p>
+<p>5 FastDFS与nginx进行集成<br>
+首先把之前的nginx进行删除<br>
+目录命令:cd /usr/local/<br>
+删除命令:rm -rf nginx<br>
+进入到nginx目录命令:cd nginx-1.6.2/<br>
+加入模块命令:./configure --add-module=/usr/local/fast/fastdfs-nginx-module/src/<br>
+重新编译命令:make &amp;&amp; make install<br>
+6 复制fastdfs-ngin-module中的配置文件,到/etc/fdfs目录中,如图所示:<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/28.jpg" alt="28.jpg"></p>
+<p>copy命令:cp /usr/local/fast/fastdfs-nginx-module/src/mod_fastdfs.conf /etc/fdfs/<br>
+7 进行修改 /etc/fdfs/ 目录下,我们刚刚copy过来的mod_fastdfs.conf 文件。
+<img src="/2018/11/10/Fastdfs分布式文件存储/29.jpg" alt="29.jpg"></p>
+<p>命令:vim /etc/fdfs/mod_fastdfs.conf修改内容:比如连接超时时间、跟踪器路径配置、url的group配置、connect_timeout=10
+tracker_server=192.168.1.172:22122<br>
+url_have_group_name = true<br>
+store_path0=/fastdfs/storage<br>
+8 复制FastDFS里的2个文件,到/etc/fdfs目录中,如图所示:<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/30.jpg" alt="30.jpg"></p>
+<p>目录命令:cd /usr/local/fast/FastDFS/conf/<br>
+Copy命令:cp http.conf mime.types /etc/fdfs/<br>
+9创建一个软连接,在/fastdfs/storage文件存储目录下创建软连接,将其链接到实际存放数据的目录。<br>
+命令:ln -s /fastdfs/storage/data/ /fastdfs/storage/data/M00<br>
+10 修改Nginx配置文件,如图所示:<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/31.jpg" alt="31.jpg"></p>
+<p>命令:vim nginx.conf修改配置内容如下图所示:<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/32.jpg" alt="32.jpg"></p>
+<p>修改内容为:<br>
+listen 8888;<br>
+server_name localhost;location ~/group([0-9])/M00 {<br>
+#alias /fastdfs/storage/data;<br>
+ngx_fastdfs_module;<br>
+}<br>
+注意:nginx里的端口要和第五步配置FastDFS存储中的storage.conf文件配置一致,
+也就是(http.server_port=8888)<br>
+11 最后检查防火墙,然后我们启动nginx服务<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/33.jpg" alt="33.jpg"></p>
+<p>启动命令:/usr/local/nginx/sbin/nginx,我们刚才上传了一个文件,上传成功,<br>
+如图:<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/34.jpg" alt="34.jpg"></p>
+<p>现在我们使用这个ID用浏览器访问地址:http://192.168.1.173:8888/group1/M00/00/00/wKgBrVaSvM6AddWWAAVFOL7FJU4.tar.gz我们就可以下载这个文件啦!如下图所示:<br>
+<img src="/2018/11/10/Fastdfs分布式文件存储/35.jpg" alt="35.jpg"></p>
+<p>运维注意:我们在使用FastDFS的时候,需要正常关机,不要使用kill -9强杀FastDFS进程,不然会在文件上传时出现丢数据的情况。
+到此,我们的FastDFS与Nginx整合完毕!!<br>
+八:启动停止服务步骤如下:<br>
+启动命令:<br>
+启动tracker命令:/etc/init.d/fdfs_trackerd start<br>
+查看进程命令:ps -el | grep fdfs<br>
+启动storage命令:/etc/init.d/fdfs_storaged start<br>
+查看进程命令:ps -el | grep fdfs<br>
+启动nginx命令:/usr/local/nginx/sbin/nginx
+停止命令:<br>
+停止tracker命令:/etc/init.d/fdfs_trackerd stop<br>
+关闭storage命令:/etc/init.d/fdfs_storaged  stop<br>
+关闭nginx命令:/usr/local/nginx/sbin/nginx -s stop</p>
 
           
         
